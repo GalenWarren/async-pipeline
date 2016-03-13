@@ -1,33 +1,84 @@
 import _ from "lodash";
 import toposort from "toposort";
 import Promise from "any-promise";
-import {precedesTypes,followsTypes} from "./decorators";
+//import {precedesTypes,followsTypes} from "./decorators";
 
 /**
 * The default execute function, does nothing, serves as end of pipeline
 */
-async function pipelineTerminator( context ) {}
+async function terminator() {}
 
 /**
+* Gets a component factory
+*/
+export function getComponentFactory({ factory, container }) {
+
+  if (factory) {
+    return factory;
+  }
+  else if (container) {
+    return ComponentType => container.get(ComponentType);
+  }
+  else {
+    return ComponentType => new ComponentType();
+  }
+
+}
+
+/**
+* Helper to normalize a component spec
+*/
+export function normalizeComponentSpec( componentSpec ) {
+
+  // expand bare constructor references into spec objects
+  let normalizedSpec = componentSpec;
+  if (_.isFunction( normalizedSpec )) {
+    normalizedSpec = {
+      type: componentSpec
+    };
+  }
+
+  // fill in defaults
+  return _.defaults( {}, normalizedSpec, {
+    key: normalizedSpec.type,
+    precedes: [],
+    follows: [],
+    useMetadata: true
+  });
+
+}
+
+/**
+* Helper to get the dependency relationships from metadata for a type
+*/
+export function getComponentDependencies( /*componentSpec*/ ) {
+  return [];
+}
+
+/**
+
 * The main pipeline component
 */
 export class Pipeline {
 
   /**
   * @constructor
-  * @param {object} components          Name->type map for components in map
+  * @param {object} components          Array of components
   */
   constructor({ components }) {
+
+    // store the components
+    this.components = components;
 
     /**
     * @method
     * @param {object} context           The context object on which the pipeline operates
     */
-    this.execute = _(components).reverse().reduce( ( innerExecute, component  ) => {
+    this.execute = _(components).reduceRight( ( innerExecute, component  ) => {
 
-      return context => component.execute( context, () => innerExecute( context ));
+      return context => Promise.resolve( component.execute( context, () => innerExecute( context )));
 
-    }, pipelineTerminator );
+    }, terminator );
 
   }
 
@@ -35,21 +86,26 @@ export class Pipeline {
   * Creates a pipeline from a set of component types using the provided container
   * @method
   */
-  static createComponents({ components, factory, container }) {
+  static create({ components, factory, container }) {
 
-    // get the factory function
-    const componentFactory = factory ||
-      ( ComponentType => container.get(ComponentType)) ||
-      ( ComponentType => new ComponentType());
+    // determine the factory function to use
+    const componentFactory = getComponentFactory({ factory, container });
+
+    // normalize component specs
+    const normalizedSpecs = _.map( components, normalizeComponentSpec );
 
     // get all dependencies (edge nodes)
-    const dependencies = _.flatMap(components, getDependencies );
+    const dependencies = _.flatMap( normalizedSpecs, getComponentDependencies );
 
     // get the components in sorted order -- kgw!
-    const sortedComponentTypes = toposort.array( componentTypes, dependencies ).reverse();
+    const sortedSpecs = toposort.array( normalizedSpecs, dependencies ).reverse();
 
-    // create all the component objects
-    return _.map( sortedComponentTypes, componentFactory );
+    // create all the component objects -- must key on type!
+    const componentInstances = _.map( sortedSpecs, spec => componentFactory( spec.type ));
+
+    // create the pipeline
+    return new Pipeline({ components: componentInstances });
 
   }
+
 }

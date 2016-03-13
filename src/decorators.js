@@ -1,6 +1,7 @@
 import {metadata} from "aurelia-metadata";
 
 // symbols for tracking metadata
+/* global Symbol */
 export const followsTypes = Symbol();
 export const precedesTypes = Symbol();
 

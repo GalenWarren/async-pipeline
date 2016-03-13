@@ -17,6 +17,9 @@
     value: true
   });
   exports.Pipeline = undefined;
+  exports.getComponentFactory = getComponentFactory;
+  exports.normalizeComponentSpec = normalizeComponentSpec;
+  exports.getComponentDependencies = getComponentDependencies;
 
   var _lodash2 = _interopRequireDefault(_lodash);
 
@@ -83,7 +86,7 @@
     };
   }
 
-  var pipelineTerminator = function () {
+  var terminator = function () {
     var ref = _asyncToGenerator(regeneratorRuntime.mark(function _callee(context) {
       return regeneratorRuntime.wrap(function _callee$(_context) {
         while (1) {
@@ -96,35 +99,93 @@
       }, _callee, this);
     }));
 
-    return function pipelineTerminator(_x) {
+    return function terminator(_x) {
       return ref.apply(this, arguments);
     };
   }();
+
+  /**
+  * Gets a component factory
+  */
+  function getComponentFactory(_ref) {
+    var factory = _ref.factory;
+    var container = _ref.container;
+
+
+    if (factory) {
+      return factory;
+    } else if (container) {
+      return function (ComponentType) {
+        return container.get(ComponentType);
+      };
+    } else {
+      return function (ComponentType) {
+        return new ComponentType();
+      };
+    }
+  }
+
+  /**
+  * Helper to normalize a component spec
+  */
+  function normalizeComponentSpec(componentSpec) {
+
+    // expand bare constructor references into spec objects
+    var normalizedSpec = componentSpec;
+    if (_lodash2.default.isFunction(normalizedSpec)) {
+      normalizedSpec = {
+        type: componentSpec
+      };
+    }
+
+    // fill in defaults
+    return _lodash2.default.defaults({}, normalizedSpec, {
+      key: normalizedSpec.type,
+      precedes: [],
+      follows: [],
+      useMetadata: true
+    });
+  }
+
+  /**
+  * Helper to get the dependency relationships from metadata for a type
+  */
+  function getComponentDependencies(componentSpec) {
+    return [];
+  }
+
+  /**
+  
+  * The main pipeline component
+  */
 
   var Pipeline = exports.Pipeline = function () {
 
     /**
     * @constructor
-    * @param {object} components          Name->type map for components in map
+    * @param {object} components          Array of components
     */
 
-    function Pipeline(_ref) {
-      var components = _ref.components;
+    function Pipeline(_ref2) {
+      var components = _ref2.components;
 
       _classCallCheck(this, Pipeline);
+
+      // store the components
+      this.components = components;
 
       /**
       * @method
       * @param {object} context           The context object on which the pipeline operates
       */
-      this.execute = (0, _lodash2.default)(components).reverse().reduce(function (innerExecute, component) {
+      this.execute = (0, _lodash2.default)(components).reduceRight(function (innerExecute, component) {
 
         return function (context) {
-          return component.execute(context, function () {
+          return _anyPromise2.default.resolve(component.execute(context, function () {
             return innerExecute(context);
-          });
+          }));
         };
-      }, pipelineTerminator);
+      }, terminator);
     }
 
     /**
@@ -134,28 +195,32 @@
 
 
     _createClass(Pipeline, null, [{
-      key: "createComponents",
-      value: function createComponents(_ref2) {
-        var components = _ref2.components;
-        var factory = _ref2.factory;
-        var container = _ref2.container;
+      key: "create",
+      value: function create(_ref3) {
+        var components = _ref3.components;
+        var factory = _ref3.factory;
+        var container = _ref3.container;
 
 
-        // get the factory function
-        var componentFactory = factory || function (ComponentType) {
-          return container.get(ComponentType);
-        } || function (ComponentType) {
-          return new ComponentType();
-        };
+        // determine the factory function to use
+        var componentFactory = getComponentFactory({ factory: factory, container: container });
+
+        // normalize component specs
+        var normalizedSpecs = _lodash2.default.map(components, normalizeComponentSpec);
 
         // get all dependencies (edge nodes)
-        var dependencies = _lodash2.default.flatMap(components, getDependencies);
+        var dependencies = _lodash2.default.flatMap(normalizedSpecs, getComponentDependencies);
 
         // get the components in sorted order -- kgw!
-        var sortedComponentTypes = _toposort2.default.array(componentTypes, dependencies).reverse();
+        var sortedSpecs = _toposort2.default.array(normalizedSpecs, dependencies).reverse();
 
-        // create all the component objects
-        return _lodash2.default.map(sortedComponentTypes, componentFactory);
+        // create all the component objects -- must key on type!
+        var componentInstances = _lodash2.default.map(sortedSpecs, function (spec) {
+          return componentFactory(spec.type);
+        });
+
+        // create the pipeline
+        return new Pipeline({ components: componentInstances });
       }
     }]);
 

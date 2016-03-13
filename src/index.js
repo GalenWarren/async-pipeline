@@ -1,2 +1,2 @@
-export * from "./pipeline";
+export {Pipeline} from "./pipeline";
 export * from "./decorators";

@@ -20,13 +20,15 @@ class Component2 {
 }
 
 val pipeline = Pipeline.create({
-  components: [
+  specs: [
     {
+      key: Component1,
       type: Component1,
       precedes: [Component2],
       useMetadata: true
     },
     {
+      key: Component2,
       type: Component2,
       follows: [Component1],
       useMetadata: true
