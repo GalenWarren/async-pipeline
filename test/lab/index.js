@@ -1,16 +1,15 @@
-import {Pipeline,precedes,follows} from "../src/index";
+import {Pipeline,before,after} from "../src/index";
 
-@precedes(Component2)
+@before(Component2)
 class Component1 {
 
   async execute( context ) {
-
 
   }
 
 }
 
-@follows(Component1)
+@after(Component1)
 class Component2 {
 
   async execute( context ) {
@@ -20,22 +19,26 @@ class Component2 {
 }
 
 val pipeline = Pipeline.create({
-  specs: [
+
+  components: [
     {
       key: Component1,
       type: Component1,
-      precedes: [Component2],
+      before: [Component2],
       useMetadata: true
     },
     {
       key: Component2,
       type: Component2,
-      follows: [Component1],
+      after: [Component1],
       useMetadata: true
     }
-  ]
+  ],
+
+  after: ({ component, context, options }) => {
+    console.log( context );
+  }
+
 });
 
-pipeline.execute({}, {
-  trace: message => console.log(message)  // true should default to this
-});
+pipeline.execute({ context: {}, options: {} });

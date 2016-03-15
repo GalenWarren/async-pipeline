@@ -1,17 +1,28 @@
-import {precedes,follows} from "../src/decorators";
+import {before,after} from "../src/decorators";
 
-@precedes(Component2)
-class Component1 {
+@before(Component2)
+export class Component1 {
 
-  async execute( context ) {
+  async execute({ context, options, next }) {
+    await next();
   }
 
 }
 
-@follows(Component1)
-class Component2 {
+@after(Component1)
+export class Component2 {
 
-  async execute( context ) {
+  async execute({ context, options, next }) {
+    await next();
+  }
+
+}
+
+@after(Component2)
+export class Component3 {
+
+  async execute({ context, options, next }) {
+    await next();
   }
 
 }

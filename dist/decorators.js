@@ -16,38 +16,39 @@
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-  exports.precedesTypes = exports.followsTypes = undefined;
-  exports.follows = follows;
-  exports.precedes = precedes;
+  exports.afterTypes = exports.beforeTypes = undefined;
+  exports.before = before;
+  exports.after = after;
 
 
   // symbols for tracking metadata
-  var followsTypes = exports.followsTypes = Symbol();
-  var precedesTypes = exports.precedesTypes = Symbol();
+  /* global Symbol */
+  var beforeTypes = exports.beforeTypes = Symbol();
+  var afterTypes = exports.afterTypes = Symbol();
 
   /**
-  * A decorator that indicates that a type follows another type
+  * A decorator that indicates types that should come before
   */
-  function follows() {
+  function before() {
     for (var _len = arguments.length, types = Array(_len), _key = 0; _key < _len; _key++) {
       types[_key] = arguments[_key];
     }
 
     return function (target) {
-      _aureliaMetadata.metadata.define(followsTypes, types, target);
+      _aureliaMetadata.metadata.define(beforeTypes, types, target);
     };
   }
 
   /**
   * A decorator that indicates that a type follows another type
   */
-  function precedes() {
+  function after() {
     for (var _len2 = arguments.length, types = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
       types[_key2] = arguments[_key2];
     }
 
     return function (target) {
-      _aureliaMetadata.metadata.define(precedesTypes, types, target);
+      _aureliaMetadata.metadata.define(afterTypes, types, target);
     };
   }
 });

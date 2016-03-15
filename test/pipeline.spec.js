@@ -1,7 +1,7 @@
 import chai from "chai";
 import sinon from "sinon";
 import {Pipeline,getComponentFactory,normalizeComponentSpec,getComponentDependencies} from "../src/pipeline";
-import {Component1,Component2} from "./components";
+import {Component1,Component2,Component3} from "./components";
 
 const assert = chai.assert;
 const expect = chai.expect;
@@ -41,6 +41,37 @@ describe('Pipeline', function() {
       assert( Type.calledOnce );
 
     });
+
+  });
+
+  describe('getComponentDependencies()', function () {
+
+    it('should work properly with no dependencies defined', function () {
+
+      const result = getComponentDependencies({
+        key: Component2,
+        type: Component2
+      });
+
+      console.log(result);
+      expect(result.length).to.equal(0);
+
+    });
+
+    it('should work properly with direct dependencies defined', function () {
+
+      const result = getComponentDependencies({
+        key: Component2,
+        type: Component2,
+        before: [Component3],
+        after: [Component1]
+      });
+
+      console.log(result);
+      expect(result.length).to.equal(0);
+
+    });
+
 
   });
 

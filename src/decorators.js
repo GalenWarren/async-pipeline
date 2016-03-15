@@ -2,23 +2,23 @@ import {metadata} from "aurelia-metadata";
 
 // symbols for tracking metadata
 /* global Symbol */
-export const followsTypes = Symbol();
-export const precedesTypes = Symbol();
+export const beforeTypes = Symbol();
+export const afterTypes = Symbol();
 
 /**
-* A decorator that indicates that a type follows another type
+* A decorator that indicates types that should come before
 */
-export function follows( ...types ) {
+export function before( ...types ) {
   return function( target ) {
-    metadata.define( followsTypes, types, target );
+    metadata.define( beforeTypes, types, target );
   };
 }
 
 /**
 * A decorator that indicates that a type follows another type
 */
-export function precedes( ...types ) {
+export function after( ...types ) {
   return function( target ) {
-    metadata.define( precedesTypes, types, target );
+    metadata.define( afterTypes, types, target );
   };
 }

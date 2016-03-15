@@ -1,12 +1,13 @@
 import _ from "lodash";
+import {metadata} from "aurelia-metadata";
 import toposort from "toposort";
 import Promise from "any-promise";
-//import {precedesTypes,followsTypes} from "./decorators";
+import {beforeTypes,afterTypes} from "./decorators";
 
 /**
 * The default execute function, does nothing, serves as end of pipeline
 */
-async function terminator() {}
+async function asyncNoop() {}
 
 /**
 * Gets a component factory
@@ -41,8 +42,8 @@ export function normalizeComponentSpec( componentSpec ) {
   // fill in defaults
   return _.defaults( {}, normalizedSpec, {
     key: normalizedSpec.type,
-    precedes: [],
-    follows: [],
+    before: [],
+    after: [],
     useMetadata: true
   });
 
@@ -51,8 +52,31 @@ export function normalizeComponentSpec( componentSpec ) {
 /**
 * Helper to get the dependency relationships from metadata for a type
 */
-export function getComponentDependencies( /*componentSpec*/ ) {
-  return [];
+export function getComponentDependencies( componentSpec ) {
+
+  // get the component types
+  const componentTypes = _([ componentSpec.key, componentSpec.type ]).uniq();
+
+  // dependencies from before relationships
+  let allBeforeTypes = _(componentSpec.before);
+  if (componentSpec.useMetadata) {
+    allBeforeTypes = allBeforeTypes.concat( metadata.get( beforeTypes, componentSpec.type ) || [] );
+  }
+  const beforeDependencies = allBeforeTypes.flatMap( beforeType =>
+    componentTypes.map( thisType => [ thisType, beforeType ]).value()
+  ).value();
+
+  // dependencies from after relationships
+  let allAfterTypes = _(componentSpec.after);
+  if (componentSpec.useMetadata) {
+    allAfterTypes = allAfterTypes.concat( metadata.get( afterTypes, componentSpec.type ) || [] );
+  }
+  const afterDependencies = allAfterTypes.flatMap( afterType =>
+    componentTypes.map( thisType => [ afterType, thisType ]).value()
+  ).value();
+
+  // return all dependencies
+  return _.concat( beforeDependencies, afterDependencies );
 }
 
 /**
@@ -65,20 +89,44 @@ export class Pipeline {
   * @constructor
   * @param {object} components          Array of components
   */
-  constructor({ components }) {
+  constructor({ components, before= asyncNoop, after = asyncNoop }) {
 
     // store the components
     this.components = components;
 
     /**
-    * @method
+    * @method                           Uses named parameters
     * @param {object} context           The context object on which the pipeline operates
+    * @param {object} options           The options object for this run
     */
     this.execute = _(components).reduceRight( ( innerExecute, component  ) => {
 
-      return context => Promise.resolve( component.execute( context, () => innerExecute( context )));
+      return async function({ context, options }) {
 
-    }, terminator );
+        // call the before hook
+        await Promise.resolve( (options.before || before)({
+          component,
+          context,
+          options
+        }));
+
+        // call the component
+        await Promise.resolve( component.execute({
+          context: context,
+          options: options,
+          next: () => innerExecute({ context, options })
+        }));
+
+        // call the after hook
+        await Promise.resolve( (options.after || after)({
+          component,
+          context,
+          options
+        }));
+
+      };
+
+    }, asyncNoop );
 
   }
 
@@ -86,25 +134,25 @@ export class Pipeline {
   * Creates a pipeline from a set of component types using the provided container
   * @method
   */
-  static create({ components, factory, container }) {
+  static create({ components, factory, container, before = asyncNoop, after = asyncNoop }) {
 
     // determine the factory function to use
     const componentFactory = getComponentFactory({ factory, container });
 
     // normalize component specs
-    const normalizedSpecs = _.map( components, normalizeComponentSpec );
+    const normalizedComponentSpecs = _.map( components, normalizeComponentSpec );
 
     // get all dependencies (edge nodes)
-    const dependencies = _.flatMap( normalizedSpecs, getComponentDependencies );
+    const componentDependencies = _.flatMap( normalizedComponentSpecs, getComponentDependencies );
 
     // get the components in sorted order -- kgw!
-    const sortedSpecs = toposort.array( normalizedSpecs, dependencies ).reverse();
+    const sortedComponentSpecs = toposort.array( normalizedComponentSpecs, componentDependencies ).reverse();
 
     // create all the component objects -- must key on type!
-    const componentInstances = _.map( sortedSpecs, spec => componentFactory( spec.type ));
+    const componentInstances = _.map( sortedComponentSpecs, spec => componentFactory( spec.type ));
 
     // create the pipeline
-    return new Pipeline({ components: componentInstances });
+    return new Pipeline({ components: componentInstances, before: before, after: after });
 
   }
 

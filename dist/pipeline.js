@@ -1,16 +1,16 @@
 (function (global, factory) {
   if (typeof define === "function" && define.amd) {
-    define(["exports", "lodash", "toposort", "any-promise", "./decorators"], factory);
+    define(["exports", "lodash", "aurelia-metadata", "toposort", "any-promise", "./decorators"], factory);
   } else if (typeof exports !== "undefined") {
-    factory(exports, require("lodash"), require("toposort"), require("any-promise"), require("./decorators"));
+    factory(exports, require("lodash"), require("aurelia-metadata"), require("toposort"), require("any-promise"), require("./decorators"));
   } else {
     var mod = {
       exports: {}
     };
-    factory(mod.exports, global.lodash, global.toposort, global.anyPromise, global.decorators);
+    factory(mod.exports, global.lodash, global.aureliaMetadata, global.toposort, global.anyPromise, global.decorators);
     global.pipeline = mod.exports;
   }
-})(this, function (exports, _lodash, _toposort, _anyPromise, _decorators) {
+})(this, function (exports, _lodash, _aureliaMetadata, _toposort, _anyPromise, _decorators) {
   "use strict";
 
   Object.defineProperty(exports, "__esModule", {
@@ -86,8 +86,8 @@
     };
   }
 
-  var terminator = function () {
-    var ref = _asyncToGenerator(regeneratorRuntime.mark(function _callee(context) {
+  var asyncNoop = function () {
+    var ref = _asyncToGenerator(regeneratorRuntime.mark(function _callee() {
       return regeneratorRuntime.wrap(function _callee$(_context) {
         while (1) {
           switch (_context.prev = _context.next) {
@@ -99,7 +99,7 @@
       }, _callee, this);
     }));
 
-    return function terminator(_x) {
+    return function asyncNoop() {
       return ref.apply(this, arguments);
     };
   }();
@@ -141,8 +141,8 @@
     // fill in defaults
     return _lodash2.default.defaults({}, normalizedSpec, {
       key: normalizedSpec.type,
-      precedes: [],
-      follows: [],
+      before: [],
+      after: [],
       useMetadata: true
     });
   }
@@ -151,7 +151,19 @@
   * Helper to get the dependency relationships from metadata for a type
   */
   function getComponentDependencies(componentSpec) {
-    return [];
+
+    // dependencies from before relationships
+    var beforeDependencies = (0, _lodash2.default)(componentSpec.before).concat(_aureliaMetadata.metadata.get(_decorators.beforeTypes, componentSpec.type) || []).flatMap(function (beforeType) {
+      return [[beforeType, componentSpec.key], [beforeType, componentSpec.type]];
+    });
+
+    // dependencies from after relationships
+    var afterDependencies = (0, _lodash2.default)(componentSpec.after).concat(_aureliaMetadata.metadata.get(_decorators.afterTypes, componentSpec.type) || []).flatMap(function (afterType) {
+      return [[componentSpec.key, afterType], [componentSpec.type, afterType]];
+    });
+
+    // return all dependencies
+    return beforeDependencies.concat(afterDependencies).value();
   }
 
   /**
@@ -168,6 +180,10 @@
 
     function Pipeline(_ref2) {
       var components = _ref2.components;
+      var _ref2$before = _ref2.before;
+      var before = _ref2$before === undefined ? asyncNoop : _ref2$before;
+      var _ref2$after = _ref2.after;
+      var after = _ref2$after === undefined ? asyncNoop : _ref2$after;
 
       _classCallCheck(this, Pipeline);
 
@@ -175,17 +191,58 @@
       this.components = components;
 
       /**
-      * @method
+      * @method                           Uses named parameters
       * @param {object} context           The context object on which the pipeline operates
+      * @param {object} options           The options object for this run
       */
       this.execute = (0, _lodash2.default)(components).reduceRight(function (innerExecute, component) {
 
-        return function (context) {
-          return _anyPromise2.default.resolve(component.execute(context, function () {
-            return innerExecute(context);
+        return function () {
+          var ref = _asyncToGenerator(regeneratorRuntime.mark(function _callee2(_ref3) {
+            var context = _ref3.context;
+            var options = _ref3.options;
+            return regeneratorRuntime.wrap(function _callee2$(_context2) {
+              while (1) {
+                switch (_context2.prev = _context2.next) {
+                  case 0:
+                    _context2.next = 2;
+                    return _anyPromise2.default.resolve((options.before || before)({
+                      component: component,
+                      context: context,
+                      options: options
+                    }));
+
+                  case 2:
+                    _context2.next = 4;
+                    return _anyPromise2.default.resolve(component.execute({
+                      context: context,
+                      options: options,
+                      next: function next() {
+                        return innerExecute({ context: context, options: options });
+                      }
+                    }));
+
+                  case 4:
+                    _context2.next = 6;
+                    return _anyPromise2.default.resolve((options.after || after)({
+                      component: component,
+                      context: context,
+                      options: options
+                    }));
+
+                  case 6:
+                  case "end":
+                    return _context2.stop();
+                }
+              }
+            }, _callee2, this);
           }));
-        };
-      }, terminator);
+
+          return function (_x) {
+            return ref.apply(this, arguments);
+          };
+        }();
+      }, asyncNoop);
     }
 
     /**
@@ -196,31 +253,35 @@
 
     _createClass(Pipeline, null, [{
       key: "create",
-      value: function create(_ref3) {
-        var components = _ref3.components;
-        var factory = _ref3.factory;
-        var container = _ref3.container;
+      value: function create(_ref4) {
+        var components = _ref4.components;
+        var factory = _ref4.factory;
+        var container = _ref4.container;
+        var _ref4$before = _ref4.before;
+        var before = _ref4$before === undefined ? asyncNoop : _ref4$before;
+        var _ref4$after = _ref4.after;
+        var after = _ref4$after === undefined ? asyncNoop : _ref4$after;
 
 
         // determine the factory function to use
         var componentFactory = getComponentFactory({ factory: factory, container: container });
 
         // normalize component specs
-        var normalizedSpecs = _lodash2.default.map(components, normalizeComponentSpec);
+        var normalizedComponentSpecs = _lodash2.default.map(components, normalizeComponentSpec);
 
         // get all dependencies (edge nodes)
-        var dependencies = _lodash2.default.flatMap(normalizedSpecs, getComponentDependencies);
+        var componentDependencies = _lodash2.default.flatMap(normalizedComponentSpecs, getComponentDependencies);
 
         // get the components in sorted order -- kgw!
-        var sortedSpecs = _toposort2.default.array(normalizedSpecs, dependencies).reverse();
+        var sortedComponentSpecs = _toposort2.default.array(normalizedComponentSpecs, componentDependencies).reverse();
 
         // create all the component objects -- must key on type!
-        var componentInstances = _lodash2.default.map(sortedSpecs, function (spec) {
+        var componentInstances = _lodash2.default.map(sortedComponentSpecs, function (spec) {
           return componentFactory(spec.type);
         });
 
         // create the pipeline
-        return new Pipeline({ components: componentInstances });
+        return new Pipeline({ components: componentInstances, before: before, after: after });
       }
     }]);
 

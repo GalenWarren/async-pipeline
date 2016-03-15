@@ -16,14 +16,11 @@
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-  Object.keys(_pipeline).forEach(function (key) {
-    if (key === "default") return;
-    Object.defineProperty(exports, key, {
-      enumerable: true,
-      get: function () {
-        return _pipeline[key];
-      }
-    });
+  Object.defineProperty(exports, "Pipeline", {
+    enumerable: true,
+    get: function () {
+      return _pipeline.Pipeline;
+    }
   });
   Object.keys(_decorators).forEach(function (key) {
     if (key === "default") return;
